@@ -1,3 +1,7 @@
 import io from "socket.io-client";
 
-export const socket = io("http://localhost:3001");
+// Get configuration from environment variables
+const DOMAIN = import.meta.env.DOMAIN || 'http://localhost';
+const SERVER_PORT = import.meta.env.SERVER_PORT || '3001';
+
+export const socket = io(`${DOMAIN}:${SERVER_PORT}`);

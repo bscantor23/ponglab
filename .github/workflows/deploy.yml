@@ -1,0 +1,68 @@
+name: Deploy PongLab
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  deploy:
+    name: Deploy to Server
+    runs-on: [ponglab]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # --- Generate .env safely ---
+      - name: Create environment file
+        run: |
+          echo "DOMAIN=${{ vars.DOMAIN }}" > .env
+          echo "SERVER_PORT=3001" >> .env
+          echo "FRONTEND_PORT=5173" >> .env
+
+      # Optional: print env for debugging
+      - name: Debug env file
+        run: |
+          echo "Generated .env:"
+          cat .env
+
+      # --- Stop containers safely ---
+      - name: Stop existing containers
+        run: |
+          docker compose down || true
+          docker container prune -f || true
+
+      # --- Build + start ---
+      - name: Build and start services
+        env:
+          DOMAIN: ${{ vars.DOMAIN }}
+        run: |
+          docker compose --env-file .env up --build -d
+
+      # --- Wait a bit ---
+      - name: Wait for services
+        run: |
+          echo "Waiting for services to start..."
+          sleep 5
+
+      # --- Verify deployment ---
+      - name: Verify deployment
+        run: |
+          docker compose ps
+
+      # --- Logs on failure ---
+      - name: Show service logs if failed
+        if: failure()
+        run: |
+          echo "===== Containers ====="
+          docker compose ps
+          echo "===== Logs ====="
+          docker compose logs --tail=100

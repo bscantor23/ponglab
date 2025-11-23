@@ -1,0 +1,19 @@
+services:
+  ponglab:
+    build:
+      context: .
+      args:
+        - DOMAIN=${DOMAIN:-http://localhost:3001}
+    container_name: three-linker
+    ports:
+      - "80:${FRONTEND_PORT}"
+      - "3001:${SERVER_PORT}"
+    environment:
+      - NODE_ENV: ${NODE_ENV}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
