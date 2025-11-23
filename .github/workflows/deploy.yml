@@ -27,6 +27,7 @@ jobs:
           echo "DOMAIN=${{ vars.DOMAIN }}" > .env
           echo "SERVER_PORT=3001" >> .env
           echo "FRONTEND_PORT=5173" >> .env
+          echo "NODE_ENV=prod" >> .env 
 
       # Optional: print env for debugging
       - name: Debug env file
