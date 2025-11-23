@@ -42,10 +42,8 @@ jobs:
 
       # --- Build + start ---
       - name: Build and start services
-        env:
-          DOMAIN: ${{ vars.DOMAIN }}
         run: |
-          docker compose --env-file .env up --build -d
+          docker compose up --build -d
 
       # --- Wait a bit ---
       - name: Wait for services
