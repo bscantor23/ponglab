@@ -22,12 +22,26 @@ jobs:
         uses: actions/checkout@v4
 
       # --- Generate .env safely ---
-      - name: Create environment file
+      - name: Create backend .env
         run: |
           echo "DOMAIN=${{ vars.DOMAIN }}" > .env
           echo "SERVER_PORT=3001" >> .env
           echo "FRONTEND_PORT=5173" >> .env
-          echo "NODE_ENV=prod" >> .env 
+          echo "NODE_ENV=prod" >> .env
+
+      - name: Create frontend .env
+        run: |
+          echo "DOMAIN=${{ vars.DOMAIN }}" > .env
+          echo "SERVER_PORT=3001" >> .env
+          echo "FRONTEND_PORT=5173" >> .env
+          echo "NODE_ENV=prod" >> .env
+
+      - name: Debug .env files
+        run: |
+          echo "--- BACKEND .env ---"
+          cat .env
+          echo "--- FRONTEND .env ---"
+          cat frontend/.env
 
       # Optional: print env for debugging
       - name: Debug env file
