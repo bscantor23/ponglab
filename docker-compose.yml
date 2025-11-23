@@ -4,7 +4,7 @@ services:
       context: .
       args:
         - DOMAIN=${DOMAIN:-http://localhost:3001}
-    container_name: three-linker
+    container_name: ponglab
     ports:
       - "80:${FRONTEND_PORT}"
       - "3001:${SERVER_PORT}"

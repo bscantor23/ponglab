@@ -1,4 +1,4 @@
-# Dockerfile simple para ThreeLinker
+# Dockerfile simple para Ponglab
 FROM node:22-alpine
 
 ARG SERVER_PORT=http://localhost:3001
