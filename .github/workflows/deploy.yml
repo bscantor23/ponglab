@@ -37,13 +37,13 @@ jobs:
       # --- Stop containers safely ---
       - name: Stop existing containers
         run: |
-          docker compose down || true
+          docker-compose down || true
           docker container prune -f || true
 
       # --- Build + start ---
       - name: Build and start services
         run: |
-          docker compose up --build -d
+          docker-compose up --build -d
 
       # --- Wait a bit ---
       - name: Wait for services
@@ -54,13 +54,13 @@ jobs:
       # --- Verify deployment ---
       - name: Verify deployment
         run: |
-          docker compose ps
+          docker-compose ps
 
       # --- Logs on failure ---
       - name: Show service logs if failed
         if: failure()
         run: |
           echo "===== Containers ====="
-          docker compose ps
+          docker-compose ps
           echo "===== Logs ====="
-          docker compose logs --tail=100
+          docker-compose logs --tail=100
