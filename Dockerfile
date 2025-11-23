@@ -47,4 +47,4 @@ RUN npm install -g serve
 EXPOSE 3001 80
 
 # Ejecuta backend + frontend
-CMD sh -c "node backend/dist/server.js & serve -s frontend/dist -l 80"
+CMD sh -c "node backend/dist/server.js & serve -s frontend/dist -l 5173"
