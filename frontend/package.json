@@ -5,10 +5,11 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "dev": "vite --port ${FRONTEND_PORT:-5173}",
+    "dev": "vite --port $FRONTEND_PORT",
     "build": "vite build",
-    "preview": "vite preview",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "preview": "vite preview --port $FRONTEND_PORT",
+    "lint": "eslint 'src/**' --fix",
+    "test": "echo \"No tests\" && exit 0"
   },
   "keywords": [],
   "author": "",
