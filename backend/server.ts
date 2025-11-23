@@ -90,6 +90,7 @@ io.on("connection", (socket: Socket) => {
 
 const PORT = process.env.SERVER_PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log(`Accepting connections at ${process.env.DOMAIN}:${process.env.SERVER_PORT}`);
+  console.log(`Clients at ${process.env.DOMAIN}:${process.env.FRONTEND_PORT}`);
+
 });
