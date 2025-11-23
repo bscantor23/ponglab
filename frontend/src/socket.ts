@@ -1,8 +1,8 @@
 import io from "socket.io-client";
 
 // Get configuration from environment variables
-const DOMAIN = import.meta.env.DOMAIN || 'http://localhost';
-const SERVER_PORT = import.meta.env.SERVER_PORT || '3001';
+const DOMAIN = import.meta.env.VITE_DOMAIN || 'http://localhost';
+const SERVER_PORT = import.meta.env.VITE_SERVER_PORT || '3001';
 
 console.log(`Connecting from Client to ${DOMAIN}:${SERVER_PORT}`)
 
