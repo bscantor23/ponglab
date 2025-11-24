@@ -15,21 +15,19 @@ services:
     build:
       context: .
       args:
-        - DOMAIN=${DOMAIN:-http://localhost}
         - MODE=server
     container_name: ponglab-server_a
-    ports:
-      - "3001:3001"
-      - "80:5173"  # Frontend for server_a
     environment:
-      - NODE_ENV=${NODE_ENV:-production}
+      - NODE_ENV=production
       - DOMAIN=${DOMAIN:-http://localhost}
       - SERVER_PORT=3001
-      - FRONTEND_PORT=5173
+      - FRONTEND_PORT=80
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - SERVER_ID=server_a
       - MODE=server
+    ports:
+      - "3001:3001"
     depends_on:
       redis:
         condition: service_healthy
@@ -69,3 +67,17 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  frontend:
+    build:
+      context: .
+      args:
+        - MODE=frontend
+    container_name: ponglab-frontend
+    environment:
+      - NODE_ENV=production
+      - FRONTEND_PORT=80
+      - MODE=frontend
+    ports:
+      - "80:80"
+    restart: unless-stopped
