@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { socket } from "../socket";
+import { getCurrentSocket } from "../socket";
 
 interface Room {
   name: string;
@@ -23,8 +23,18 @@ function RoomJoin({ onJoin }: RoomJoinProps) {
   const [password, setPassword] = useState<string>("");
   const [playerName, setPlayerName] = useState<string>("");
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
+  const [socket, setSocket] = useState<any>(null);
 
   useEffect(() => {
+    const currentSocket = getCurrentSocket();
+    if (currentSocket) {
+      setSocket(currentSocket);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+
     // Request available rooms from server
     socket.emit("get-rooms");
 
@@ -34,14 +44,35 @@ function RoomJoin({ onJoin }: RoomJoinProps) {
 
     // Set up periodic refresh every 5 seconds
     const interval = setInterval(() => {
-      socket.emit("get-rooms");
+      if (socket) {
+        socket.emit("get-rooms");
+      }
     }, 5000);
 
     return () => {
+      console.log("Cleaning up RoomJoin socket events for:", socket.id);
       socket.off("rooms-list");
       clearInterval(interval);
     };
-  }, []);
+  }, [socket]);
+
+  // Poll for socket changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentSocket = getCurrentSocket();
+      if (currentSocket && currentSocket !== socket) {
+        console.log(
+          "RoomJoin: Socket changed, updating reference for:",
+          currentSocket.id
+        );
+        setSocket(currentSocket);
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [socket]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

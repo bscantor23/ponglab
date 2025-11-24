@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { socket } from "../socket";
+import { socket, getCurrentSocket } from "../socket";
 
 interface Player {
   id: string;
@@ -36,14 +36,8 @@ function RoomLobby({
   );
 
   useEffect(() => {
-    console.log(
-      "RoomLobby useEffect selectedPlayers:",
-      roomData.selectedPlayers,
-      "isHost:",
-      isHost
-    );
     setSelectedPlayers(roomData.selectedPlayers || []);
-  }, [roomData.selectedPlayers]);
+  }, [roomData.selectedPlayers, isHost, roomData.players, roomData.guests]);
 
   const handlePlayerSelect = (playerId: string) => {
     if (!isHost) return;
@@ -56,14 +50,27 @@ function RoomLobby({
     } else {
       newSelected = current;
     }
-    console.log("handlePlayerSelect newSelected:", newSelected);
     setSelectedPlayers(newSelected);
-    socket.emit("update-selected-players", { selectedPlayers: newSelected });
+    const currentSocket = getCurrentSocket();
+    if (currentSocket) {
+      currentSocket.emit("update-selected-players", {
+        selectedPlayers: newSelected,
+      });
+    }
   };
 
+  const [isStartingGame, setIsStartingGame] = useState(false);
+
   const handleStartGame = () => {
-    if (selectedPlayers.length === 2) {
+    if (selectedPlayers.length === 2 && isHost && !isStartingGame) {
+      setIsStartingGame(true);
+      console.log("Starting game...");
       onStartGame(selectedPlayers);
+
+      // Reset starting state after 3 seconds (in case no response)
+      setTimeout(() => {
+        setIsStartingGame(false);
+      }, 3000);
     }
   };
 
@@ -81,7 +88,7 @@ function RoomLobby({
           style={{ backgroundColor: "#2A252A" }}
         >
           <h2 className="text-2xl font-bold mb-6 text-center">
-            Sala de Espera
+            Sala de Espera {isHost && "(Anfitrión)"}
           </h2>
 
           <div className="mb-6">
@@ -158,10 +165,32 @@ function RoomLobby({
                 </p>
                 <button
                   onClick={handleStartGame}
-                  disabled={selectedPlayers.length !== 2}
-                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 px-4 rounded-md transition duration-200 font-semibold"
+                  disabled={selectedPlayers.length !== 2 || isStartingGame}
+                  className={`w-full py-2 px-4 rounded-md transition duration-200 font-semibold ${
+                    selectedPlayers.length === 2 && !isStartingGame
+                      ? "bg-green-600 hover:bg-green-700 text-white"
+                      : isStartingGame
+                      ? "bg-yellow-600 text-white"
+                      : "bg-gray-600 cursor-not-allowed text-gray-300"
+                  }`}
+                  style={{
+                    pointerEvents:
+                      selectedPlayers.length === 2 && !isStartingGame
+                        ? "auto"
+                        : "none",
+                    opacity:
+                      selectedPlayers.length === 2 && !isStartingGame ? 1 : 0.5,
+                    position: "relative",
+                    zIndex: 10,
+                  }}
                 >
-                  Iniciar Juego
+                  {isStartingGame
+                    ? "Iniciando..."
+                    : `Iniciar Juego${
+                        selectedPlayers.length !== 2
+                          ? ` (${selectedPlayers.length}/2)`
+                          : ""
+                      }`}
                 </button>
               </>
             )}

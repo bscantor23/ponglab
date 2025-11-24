@@ -44,7 +44,21 @@ COPY --from=builder /app/frontend/dist ./frontend/dist
 # Instalar 'serve' para servir el frontend
 RUN npm install -g serve
 
-EXPOSE 3001 80
+# Multi-server setup: support different startup modes
+# MODE can be: "single" (frontend + backend), "server" (backend only), "frontend" (frontend only)
+ARG MODE=single
+ENV MODE=${MODE}
 
-# Ejecuta backend + frontend
-CMD sh -c "node backend/dist/server.js & serve -s frontend/dist -l 5173"
+EXPOSE 3001 3002 80 5173
+
+# Startup based on mode
+CMD if [ "$MODE" = "server" ]; then \
+        echo "Starting server mode (backend only)"; \
+        node backend/dist/server.js; \
+    elif [ "$MODE" = "frontend" ]; then \
+        echo "Starting frontend mode"; \
+        serve -s frontend/dist -l ${FRONTEND_PORT:-5173}; \
+    else \
+        echo "Starting single mode (frontend + backend)"; \
+        node backend/dist/server.js & serve -s frontend/dist -l ${FRONTEND_PORT:-5173}; \
+    fi

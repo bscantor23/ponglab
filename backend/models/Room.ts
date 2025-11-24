@@ -18,17 +18,19 @@ interface GameState {
 export class Room {
   public name: string;
   public password: string | null;
-  public hostId: string;
+  public hostName: string;
+  public hostId: string; // Keep for backward compatibility during migration
   public players: Map<string, Player>;
   public guests: Map<string, Player>;
   public gameState: GameState | null;
   public isGameActive: boolean;
   public selectedPlayers: string[];
 
-  constructor(name: string, password: string, hostId: string) {
+  constructor(name: string, password: string, hostId: string, hostName: string) {
     this.name = name;
     this.password = password;
     this.hostId = hostId;
+    this.hostName = hostName; // New primary host identification
     this.players = new Map();
     this.guests = new Map();
     this.gameState = null;
@@ -156,7 +158,8 @@ export class Room {
   toJSON(): any {
     return {
       name: this.name,
-      hostId: this.hostId,
+      hostName: this.hostName,
+      hostId: this.hostId, // Keep for backward compatibility
       players: Array.from(this.players.values()),
       guests: Array.from(this.guests.values()),
       gameState: this.gameState,
