@@ -12,9 +12,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
-    origin: `${process.env.DOMAIN || "http://localhost"}:${
-      process.env.FRONTEND_PORT || 5173
-    }`,
+    origin: `${process.env.DOMAIN || "http://localhost"}`,
     methods: ["GET", "POST"],
   },
 });
@@ -55,7 +53,6 @@ io.on("connection", (socket: Socket) => {
   socket.on(
     "update-selected-players",
     (data: { selectedPlayers: string[] }) => {
-      console.log("hola?");
       roomController.handleUpdateSelectedPlayers(socket, data);
     }
   );
@@ -90,7 +87,8 @@ io.on("connection", (socket: Socket) => {
 
 const PORT = process.env.SERVER_PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`Accepting connections at ${process.env.DOMAIN}:${process.env.SERVER_PORT}`);
+  console.log(
+    `Accepting connections at ${process.env.DOMAIN}:${process.env.SERVER_PORT}`
+  );
   console.log(`Clients at ${process.env.DOMAIN}:${process.env.FRONTEND_PORT}`);
-
 });
