@@ -14,8 +14,8 @@ export class RoomService {
   }
 
   private startGameLoop(): void {
-    // Run game physics at 60 FPS
-    const targetFPS = 60;
+    // Run game physics at 120 FPS for smoother gameplay
+    const targetFPS = 120;
     const frameTime = 1000 / targetFPS;
     let lastTime = Date.now();
 
@@ -24,10 +24,13 @@ export class RoomService {
       const deltaTime = (currentTime - lastTime) / 1000; // Convert to seconds
       lastTime = currentTime;
 
+      // Cap deltaTime to prevent large jumps
+      const clampedDeltaTime = Math.min(deltaTime, 1/30); // Max 30 FPS step
+
       // Update all active games
       for (const room of this.rooms.values()) {
         if (room.isGameActive && !room.gameState?.winner) {
-          room.updateGamePhysics(deltaTime);
+          room.updateGamePhysics(clampedDeltaTime);
         }
       }
     }, frameTime);

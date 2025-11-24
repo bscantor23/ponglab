@@ -46,6 +46,15 @@ function Game({
   const [previousState, setPreviousState] = useState<GameState | null>(null);
   const [interpolatedState, setInterpolatedState] =
     useState<InterpolatedState | null>(null);
+  
+  // Local player prediction state
+  const localPlayerPrediction = useRef<{ player1: number; player2: number }>({
+    player1: 250,
+    player2: 250
+  });
+  
+  const keysPressed = useRef<Set<string>>(new Set());
+  const animationFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -69,8 +78,24 @@ function Game({
         ctx.fill();
       }
 
-      // Use interpolated positions for smooth rendering
-      const currentPaddles = interpolatedState?.paddles || gameState.paddles;
+      // Determine which player is the current client
+      const isActivePlayer = gameState.players.some(
+        (player: any) => player.id === socketId
+      );
+      
+      let currentPaddles = gameState.paddles;
+      
+      // Use local prediction for immediate response
+      if (isActivePlayer) {
+        const isPlayer1 = gameState.players[0]?.id === socketId;
+        const isPlayer2 = gameState.players[1]?.id === socketId;
+        
+        currentPaddles = {
+          player1: isPlayer1 ? localPlayerPrediction.current.player1 : gameState.paddles.player1,
+          player2: isPlayer2 ? localPlayerPrediction.current.player2 : gameState.paddles.player2
+        };
+      }
+
       const currentBall = interpolatedState?.ball || gameState.ball;
 
       // Left paddle (player1) is always pink, right paddle (player2) is always blue
@@ -128,7 +153,7 @@ function Game({
     };
 
     draw();
-  }, [gameState, ballTrail, interpolatedState]);
+  }, [gameState, ballTrail, interpolatedState, socketId]);
 
   useEffect(() => {
     // Only allow paddle control if this user is one of the active players
@@ -138,24 +163,62 @@ function Game({
 
     if (!isActivePlayer) return;
 
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === "ArrowUp" && paddleY > 0) {
-        e.preventDefault();
-        setPaddleY((prev) => Math.max(0, prev - 15));
-      } else if (e.key === "ArrowDown" && paddleY < 500) {
-        e.preventDefault();
-        setPaddleY((prev) => Math.min(500, prev + 15));
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keysPressed.current.add(e.key);
+      e.preventDefault();
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysPressed.current.delete(e.key);
+      e.preventDefault();
+    };
+
+    // High-frequency input handling with requestAnimationFrame
+    const handleInput = () => {
+      let newPaddleY = paddleY;
+      const moveSpeed = 12; // Increased for more responsive feel
+      
+      if (keysPressed.current.has("ArrowUp") && newPaddleY > 0) {
+        newPaddleY = Math.max(0, newPaddleY - moveSpeed);
+      }
+      if (keysPressed.current.has("ArrowDown") && newPaddleY < 500) {
+        newPaddleY = Math.min(500, newPaddleY + moveSpeed);
+      }
+
+      if (newPaddleY !== paddleY) {
+        setPaddleY(newPaddleY);
+        
+        // Update local prediction immediately
+        const isPlayer1 = gameState.players[0]?.id === socketId;
+        if (isPlayer1) {
+          localPlayerPrediction.current.player1 = newPaddleY;
+        } else {
+          localPlayerPrediction.current.player2 = newPaddleY;
+        }
       }
     };
 
-    globalThis.addEventListener("keydown", handleKeyPress);
-    return () => globalThis.removeEventListener("keydown", handleKeyPress);
+    const inputLoop = () => {
+      handleInput();
+      animationFrameRef.current = requestAnimationFrame(inputLoop);
+    };
+
+    globalThis.addEventListener("keydown", handleKeyDown);
+    globalThis.addEventListener("keyup", handleKeyUp);
+    animationFrameRef.current = requestAnimationFrame(inputLoop);
+
+    return () => {
+      globalThis.removeEventListener("keydown", handleKeyDown);
+      globalThis.removeEventListener("keyup", handleKeyUp);
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
   }, [paddleY, gameState.players, socketId]);
 
-  // Send paddle updates only when position changes
+  // Send paddle updates with improved frequency
   useEffect(() => {
-    if (Math.abs(paddleY - lastSentPaddleY) > 1) {
-      // Small threshold to avoid spam
+    if (Math.abs(paddleY - lastSentPaddleY) > 0.5) { // Reduced threshold for smoother updates
       const isActivePlayer = gameState.players.some(
         (player: any) => player.id === socketId
       );
@@ -203,33 +266,37 @@ function Game({
     }
   }, [gameState?.ball]);
 
-  // Interpolation effect for smooth rendering
+  // Enhanced interpolation effect for smooth rendering
   useEffect(() => {
     if (!previousState || !gameState) return;
 
     const interpolate = () => {
       const now = Date.now();
-      const timeDiff = gameState.timestamp ? now - gameState.timestamp : 0;
-      const interpolationFactor = Math.min(timeDiff / (1000 / 60), 1); // Max 1 frame ahead
+      const timeDiff = gameState.timestamp ? now - gameState.timestamp : 16;
+      const interpolationFactor = Math.min(timeDiff / 8.33, 1); // 120 FPS baseline for smoother interpolation
 
+      // Enhanced ball interpolation with smooth step
       const interpolatedBall = {
         x:
           previousState.ball.x +
-          (gameState.ball.x - previousState.ball.x) * interpolationFactor,
+          (gameState.ball.x - previousState.ball.x) *
+            smoothStep(interpolationFactor),
         y:
           previousState.ball.y +
-          (gameState.ball.y - previousState.ball.y) * interpolationFactor,
+          (gameState.ball.y - previousState.ball.y) *
+            smoothStep(interpolationFactor),
       };
 
+      // Enhanced paddle interpolation for smooth remote player movement
       const interpolatedPaddles = {
         player1:
           previousState.paddles.player1 +
           (gameState.paddles.player1 - previousState.paddles.player1) *
-            interpolationFactor,
+            smoothStep(interpolationFactor),
         player2:
           previousState.paddles.player2 +
           (gameState.paddles.player2 - previousState.paddles.player2) *
-            interpolationFactor,
+            smoothStep(interpolationFactor),
       };
 
       setInterpolatedState({
@@ -242,7 +309,32 @@ function Game({
     return () => cancelAnimationFrame(interpolationFrame);
   }, [gameState, previousState]);
 
-  // Ball movement logic - removed since physics is handled server-side
+  // Smooth interpolation function for better visual quality
+  const smoothStep = (t: number): number => {
+    // Smooth cubic easing for better visual quality
+    return t * t * (3 - 2 * t);
+  };
+
+  // Reconcile local prediction with server state
+  useEffect(() => {
+    const isActivePlayer = gameState.players.some(
+      (player: any) => player.id === socketId
+    );
+
+    if (!isActivePlayer || !gameState.timestamp) return;
+
+    const isPlayer1 = gameState.players[0]?.id === socketId;
+    const isPlayer2 = gameState.players[1]?.id === socketId;
+
+    // Gradually converge local prediction to server state
+    if (isPlayer1) {
+      localPlayerPrediction.current.player1 = 
+        localPlayerPrediction.current.player1 * 0.7 + gameState.paddles.player1 * 0.3;
+    } else if (isPlayer2) {
+      localPlayerPrediction.current.player2 = 
+        localPlayerPrediction.current.player2 * 0.7 + gameState.paddles.player2 * 0.3;
+    }
+  }, [gameState.paddles, gameState.timestamp, socketId, gameState.players]);
 
   if (gameState.winner) {
     const winnerPlayer = gameState.players.find(
@@ -302,6 +394,9 @@ function Game({
       <div className="mt-4 text-center">
         <p className="text-gray-300 text-sm">
           Usa las teclas ↑↓ para mover tu paleta
+        </p>
+        <p className="text-gray-400 text-xs mt-1">
+          Sistema mejorado de FPS para movimiento más fluido
         </p>
       </div>
     </div>

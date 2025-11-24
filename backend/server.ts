@@ -83,16 +83,18 @@ const subscribeToPrimaryServerElection = async () => {
   }
 };
 
-// Distributed game loop: publish game state to Redis at 60 FPS
+// Distributed game loop: publish game state to Redis at 120 FPS for smoother gameplay
 setInterval(async () => {
   const rooms = roomController.getAllRooms();
   for (const room of rooms) {
     if (room.isGameActive && room.gameState) {
+      // Ensure timestamp is updated for client interpolation
+      room.gameState.timestamp = Date.now();
       await publishGameState(room.name, room.gameState);
       io.to(room.name).emit("game-update", room.gameState);
     }
   }
-}, 1000 / 60); // 60 FPS
+}, 1000 / 120); // 120 FPS for smoother synchronization
 
 // Primary server election - Server A stays active, Server B stays backup
 const handlePrimaryServerElection = async () => {

@@ -28,7 +28,6 @@ export const publishGameState = async (roomName: string, state: any) => {
       timestamp: Date.now(),
       serverId: process.env.SERVER_ID || "default-server",
     });
-    console.log(`Publishing game state for room ${roomName} from server ${process.env.SERVER_ID || "default-server"}`);
     await pub.publish(`game-state:${roomName}`, message);
     console.log(`Game state published successfully for room ${roomName}`);
   } catch (error) {
@@ -95,7 +94,6 @@ export const subscribeToGameState = async (
     await sub.subscribe(`game-state:${roomName}`, (message: string) => {
       try {
         const data = JSON.parse(message);
-        console.log(`Received game state for room ${roomName} from server ${data.serverId}, timestamp: ${data.timestamp}`);
         callback(data);
       } catch (error) {
         console.error("Failed to parse game state message:", error);
