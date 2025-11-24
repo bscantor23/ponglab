@@ -13,7 +13,7 @@ const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
     origin: `${process.env.DOMAIN || "http://localhost"}:${
-      process.env.SERVER_PORT || 5173
+      process.env.FRONTEND_PORT || 5173
     }`,
     methods: ["GET", "POST"],
   },

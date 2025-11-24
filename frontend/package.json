@@ -5,9 +5,9 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "dev": "vite --port $FRONTEND_PORT",
+    "dev": "vite --port ${FRONTEND_PORT:-5173}",
     "build": "vite build",
-    "preview": "vite preview --port $FRONTEND_PORT",
+    "preview": "vite preview --port ${FRONTEND_PORT:-5173}",
     "lint": "eslint 'src/**' --fix",
     "test": "echo \"No tests\" && exit 0"
   },
