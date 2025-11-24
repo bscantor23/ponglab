@@ -337,10 +337,6 @@ export class RoomController {
           };
           room.isGameActive = true;
 
-          console.log(
-            `Room ${roomName} state synchronized from server ${remoteServerId}`
-          );
-
           // Broadcast the updated state to all clients in the room
           this.io.to(roomName).emit("game-update", room.gameState);
         }

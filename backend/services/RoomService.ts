@@ -25,7 +25,7 @@ export class RoomService {
       lastTime = currentTime;
 
       // Cap deltaTime to prevent large jumps
-      const clampedDeltaTime = Math.min(deltaTime, 1/30); // Max 30 FPS step
+      const clampedDeltaTime = Math.min(deltaTime, 1 / 30); // Max 30 FPS step
 
       // Update all active games
       for (const room of this.rooms.values()) {
@@ -42,23 +42,48 @@ export class RoomService {
     hostId: string,
     hostName: string
   ): Promise<Room> {
+    // Validate room name length
+    if (roomName.length > 20) {
+      throw new Error("El nombre de la sala no puede exceder 20 caracteres.");
+    }
+
+    // Validate player name length
+    if (hostName.length > 20) {
+      throw new Error("El nombre del jugador no puede exceder 20 caracteres.");
+    }
+
     if (this.rooms.has(roomName)) {
       throw new Error("Room already exists");
     }
 
+    // Strict rule: Check if player name is already taken by ANY player
+    const existingHost = Array.from(this.players.values()).find(
+      (p) => p.name === hostName && p.id !== hostId
+    );
+    if (existingHost) {
+      throw new Error(
+        "El nombre de jugador ya está en uso. Por favor, elige otro nombre."
+      );
+    }
+
     const room = new Room(roomName, password, hostId, hostName);
     const host = new Player(hostId, hostName, roomName);
+
+    // Ensure host status is set to true
     host.setHost(true);
 
+    // Add as main player (not guest)
     room.addPlayer(hostId, host);
     this.rooms.set(roomName, room);
     this.players.set(hostId, host);
 
-    console.log("Room created with host preservation:", {
+    console.log("Room created with single host assignment:", {
       roomName,
       hostId,
       hostName,
       hostPlayer: { id: host.id, name: host.name, isHost: host.isHost },
+      roomPlayersCount: room.players.size,
+      roomGuestsCount: room.guests.size,
     });
 
     try {
@@ -103,14 +128,64 @@ export class RoomService {
       return;
     }
 
-    const room = this.rooms.get(player.room);
-    if (room) {
-      room.removePlayer(playerId);
-      if (room.players.size === 0) {
-        this.rooms.delete(player.room);
+    const roomName = player.room;
+    const room = this.rooms.get(roomName);
+
+    // Check if this is the host leaving
+    const isHostLeaving = player.isHost;
+
+    if (isHostLeaving) {
+      console.log(
+        `Host ${player.name} (${playerId}) leaving room ${roomName} - deleting room`
+      );
+
+      // Ensure host status is properly cleaned up
+      player.setHost(false);
+
+      // Remove player from room first
+      if (room) {
+        room.removePlayer(playerId);
+      }
+
+      // Delete the entire room when host leaves
+      this.rooms.delete(roomName);
+
+      console.log(`Room ${roomName} deleted because host left`);
+    } else {
+      // Regular player leaving - just remove them from the room
+      console.log(
+        `Player ${player.name} (${playerId}) leaving room ${roomName}`
+      );
+
+      if (room) {
+        room.removePlayer(playerId);
+
+        // Validate room still has correct host assignment if players remain
+        this.validateRoomHostStatus(roomName);
       }
     }
+
     this.players.delete(playerId);
+  }
+
+  // Validate that a room has exactly one host
+  private validateRoomHostStatus(roomName: string): void {
+    const room = this.rooms.get(roomName);
+    if (!room) return;
+
+    const allPlayers = [...room.players.values(), ...room.guests.values()];
+    const hosts = allPlayers.filter((p) => p.isHost);
+
+    if (hosts.length > 1) {
+      console.warn(`Room ${roomName} has ${hosts.length} hosts, cleaning up`);
+      this.ensureSingleHost(roomName);
+    } else if (hosts.length === 0 && allPlayers.length > 0) {
+      // If no host but players exist, we could optionally assign a new host
+      // For now, just log the situation
+      console.warn(
+        `Room ${roomName} has no host but ${allPlayers.length} players exist`
+      );
+    }
   }
 
   startGame(
@@ -129,18 +204,83 @@ export class RoomService {
       throw new Error("Room not found");
     }
 
-    // Enhanced host verification: Check both socket ID AND host status
-    const requestingPlayer = this.players.get(hostId);
+    // Enhanced host verification with fallbacks
+    let requestingPlayer = this.players.get(hostId);
 
-    // Check if player has host status or matches the room's original host name
-    // Primary check: player name matches room's original host name
-    const isOriginalHost = room.hostName === requestingPlayer?.name;
-    const hasHostStatus = requestingPlayer?.isHost === true;
-    const isAuthorizedHost = isOriginalHost || hasHostStatus;
+    // Primary: If player found but doesn't have host status, check if they should be the host
+    if (requestingPlayer && !requestingPlayer.isHost) {
+      console.log(
+        `Player found by socket ID but doesn't have host status, checking if they should be host...`
+      );
 
-    if (!isAuthorizedHost) {
+      if (requestingPlayer.name === room.hostName) {
+        console.log(
+          `Restoring host status for original host ${requestingPlayer.name} (found by socket ID)`
+        );
+        this.ensureSingleHost(roomName);
+        requestingPlayer.setHost(true);
+      }
+    }
+
+    // Fallback: If player not found by socket ID, try to find by room and original host name
+    if (!requestingPlayer) {
+      console.log(
+        `Player not found by socket ID ${hostId}, searching by room and host name...`
+      );
+
+      const allPlayersInRoom = Array.from(this.players.values()).filter(
+        (p) => p.room === roomName
+      );
+      requestingPlayer = allPlayersInRoom.find((p) => p.name === room.hostName);
+
+      if (requestingPlayer) {
+        console.log(
+          `Found original host by name: ${requestingPlayer.name} (${requestingPlayer.id})`
+        );
+
+        // Restore host status for original host if it was lost
+        if (!requestingPlayer.isHost) {
+          console.log(
+            `Restoring host status for original host ${requestingPlayer.name}`
+          );
+          this.ensureSingleHost(roomName);
+          requestingPlayer.setHost(true);
+        }
+      }
+    }
+
+    // Check host authorization with detailed logging
+    if (!requestingPlayer) {
+      console.error("No player found for host verification", {
+        hostId,
+        roomName,
+        roomHostName: room.hostName,
+        allPlayersInRoom: Array.from(this.players.values())
+          .filter((p) => p.room === roomName)
+          .map((p) => ({ id: p.id, name: p.name, isHost: p.isHost })),
+      });
+      throw new Error("Player not found - please rejoin the room");
+    }
+
+    if (!requestingPlayer.isHost) {
+      console.error("Host verification failed", {
+        playerId: requestingPlayer.id,
+        playerName: requestingPlayer.name,
+        playerIsHost: requestingPlayer.isHost,
+        roomHostName: room.hostName,
+        hostId: hostId,
+      });
       throw new Error("Unauthorized - Only the host can start the game");
     }
+
+    // Additional validation: ensure player is in the correct room
+    if (requestingPlayer.room !== roomName) {
+      throw new Error("Player is not in the specified room");
+    }
+
+    console.log(
+      `Host verification successful for ${requestingPlayer.name} (${requestingPlayer.id})`
+    );
 
     const selectedPlayers = selectedPlayerIds
       .map((id) => {
@@ -157,6 +297,13 @@ export class RoomService {
 
     if (selectedPlayers.length !== 2) {
       throw new Error("Must select exactly 2 players");
+    }
+
+    // Validate all selected players are in the room
+    for (const player of selectedPlayers) {
+      if (player.room !== roomName) {
+        throw new Error(`Player ${player.name} is not in room ${roomName}`);
+      }
     }
 
     room.startGame(selectedPlayers);
@@ -318,6 +465,31 @@ export class RoomService {
     }
   }
 
+  // Ensure only one host per room by removing host status from all other players
+  private ensureSingleHost(roomName: string): void {
+    const room = this.rooms.get(roomName);
+    if (!room) return;
+
+    // Remove host status from all players in the room
+    for (const player of room.players.values()) {
+      if (player.isHost) {
+        player.setHost(false);
+      }
+    }
+    for (const player of room.guests.values()) {
+      if (player.isHost) {
+        player.setHost(false);
+      }
+    }
+
+    // Also check global player map for any stray host references
+    for (const player of this.players.values()) {
+      if (player.room === roomName && player.isHost) {
+        player.setHost(false);
+      }
+    }
+  }
+
   // Shared method for normal room joining (used by both join methods)
   private performNormalJoin(
     roomName: string,
@@ -325,52 +497,45 @@ export class RoomService {
     playerId: string,
     playerName: string
   ): Room {
+    // Validate player name length
+    if (playerName.length > 20) {
+      throw new Error("El nombre del jugador no puede exceder 20 caracteres.");
+    }
+
     const room = this.rooms.get(roomName);
     if (!room) {
-      throw new Error("Room not found");
+      throw new Error("Sala no encontrada");
     }
 
     // Check password
     if (room.password && room.password !== password) {
-      throw new Error("Incorrect password");
+      throw new Error("Contraseña incorrecta");
     }
 
-    // Check if player name is already taken globally by a DIFFERENT player
+    // Strict rule: Check if player name is already taken by ANY player
     const conflictingPlayer = Array.from(this.players.values()).find(
       (p) => p.name === playerName && p.id !== playerId
     );
 
     if (conflictingPlayer) {
-      // Try to remove conflicting player if they're in a different room or stale
-      if (conflictingPlayer.room !== roomName) {
-        this.leaveRoom(conflictingPlayer.id);
-      } else {
-        this.leaveRoom(conflictingPlayer.id);
-      }
-
-      // Retry the check after cleanup
-      const stillConflicting = Array.from(this.players.values()).find(
-        (p) => p.name === playerName && p.id !== playerId
+      throw new Error(
+        "El nombre de jugador ya está en uso. Por favor, elige otro nombre."
       );
-
-      if (stillConflicting) {
-        throw new Error("El nombre de jugador ya está en uso.");
-      } else {
-        console.log("Cleanup successful, proceeding with join");
-      }
     }
 
     const player = new Player(playerId, playerName, roomName);
 
-    // Check if this is the original host rejoining after failover
-    // Use hostName for identification (more reliable across server reconnections)
     const isOriginalHost = room.hostName === playerName;
     if (isOriginalHost) {
+      // Ensure only one host by removing host status from all others
+      this.ensureSingleHost(roomName);
+
       // Restore host status for original host
       player.setHost(true);
       room.addPlayer(playerId, player);
     } else {
-      // Add as guest (regular player)
+      // Add as guest (regular player) - never set as host
+      player.setHost(false);
       room.addGuest(playerId, player);
     }
 
@@ -386,7 +551,7 @@ export class RoomService {
     playerName: string
   ): Promise<Room> {
     if (this.rooms.has(roomName)) {
-      throw new Error("Room already exists");
+      throw new Error("La sala ya existe");
     }
 
     // Get the original host information from Redis metadata
@@ -394,7 +559,7 @@ export class RoomService {
     const redisMetadata = await getRoomMetadataFromRedis(roomName);
 
     if (!redisMetadata) {
-      throw new Error("Room metadata not found in Redis");
+      throw new Error("Datos de la sala no encontrados");
     }
 
     // Create room with ORIGINAL host information from Redis
@@ -478,12 +643,37 @@ export class RoomService {
     // Remove the specific player
     if (this.players.has(playerId)) {
       const player = this.players.get(playerId)!;
+      const roomName = player.room;
+      const isHostBeingCleanedUp = player.isHost;
+
+      // Validate and handle host status cleanup
+      if (isHostBeingCleanedUp) {
+        console.log(
+          `Force cleanup: Host ${playerName} (${playerId}) being removed from room ${roomName} - deleting room`
+        );
+        player.setHost(false);
+
+        // Ensure host status is cleaned up in the room
+        this.ensureSingleHost(roomName);
+      }
+
       this.players.delete(playerId);
 
       // Also remove from their room if they have one
-      const room = this.rooms.get(player.room);
+      const room = this.rooms.get(roomName);
       if (room) {
         room.removePlayer(playerId);
+
+        if (isHostBeingCleanedUp) {
+          // Delete the entire room when host is force cleaned up
+          this.rooms.delete(roomName);
+          console.log(
+            `Room ${roomName} deleted because host was force cleaned up`
+          );
+        } else {
+          // Validate room host status after cleanup
+          this.validateRoomHostStatus(roomName);
+        }
       }
     }
 
@@ -493,12 +683,38 @@ export class RoomService {
     );
 
     if (playersWithSameName.length > 0) {
+      console.log(
+        `Force cleanup: Found ${playersWithSameName.length} duplicate players with name ${playerName}, removing them`
+      );
+
       playersWithSameName.forEach(([id, player]) => {
+        const roomName = player.room;
+        const isDuplicateHost = player.isHost;
+
+        // Handle host status for duplicates
+        if (isDuplicateHost) {
+          console.log(
+            `Force cleanup: Duplicate host ${playerName} (${id}) being removed from room ${roomName} - deleting room`
+          );
+          player.setHost(false);
+          this.ensureSingleHost(roomName);
+        }
+
         this.players.delete(id);
 
-        const room = this.rooms.get(player.room);
+        const room = this.rooms.get(roomName);
         if (room) {
           room.removePlayer(id);
+
+          if (isDuplicateHost) {
+            // Delete the entire room when duplicate host is force cleaned up
+            this.rooms.delete(roomName);
+            console.log(
+              `Room ${roomName} deleted because duplicate host was force cleaned up`
+            );
+          } else {
+            this.validateRoomHostStatus(roomName);
+          }
         }
       });
     }

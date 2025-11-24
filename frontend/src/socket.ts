@@ -342,25 +342,6 @@ export const leaveRoom = (socket: Socket) => {
 // Get the current socket instance
 export const getCurrentSocket = (): Socket | null => {
   const socket = currentSocket;
-  if (socket) {
-    console.log("getCurrentSocket returning:", {
-      socketId: socket.id,
-      playerName: currentPlayerName,
-    });
-    console.log("All active player sockets:");
-    playerSockets.forEach((playerSocket, name) => {
-      console.log(`  ${name}: ${playerSocket.id}`);
-    });
-  } else {
-    console.log(
-      "getCurrentSocket returning null, playerName:",
-      currentPlayerName
-    );
-    console.log("All active player sockets:");
-    playerSockets.forEach((playerSocket, name) => {
-      console.log(`  ${name}: ${playerSocket.id}`);
-    });
-  }
   return socket;
 };
 

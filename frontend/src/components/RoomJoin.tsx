@@ -50,7 +50,6 @@ function RoomJoin({ onJoin }: RoomJoinProps) {
     }, 5000);
 
     return () => {
-      console.log("Cleaning up RoomJoin socket events for:", socket.id);
       socket.off("rooms-list");
       clearInterval(interval);
     };
@@ -61,10 +60,6 @@ function RoomJoin({ onJoin }: RoomJoinProps) {
     const interval = setInterval(() => {
       const currentSocket = getCurrentSocket();
       if (currentSocket && currentSocket !== socket) {
-        console.log(
-          "RoomJoin: Socket changed, updating reference for:",
-          currentSocket.id
-        );
         setSocket(currentSocket);
       }
     }, 1000);
@@ -149,7 +144,9 @@ function RoomJoin({ onJoin }: RoomJoinProps) {
                 id="room-name-input"
                 type="text"
                 value={roomName}
-                onChange={(e) => setRoomName(e.target.value)}
+                onChange={(e) => setRoomName(e.target.value.slice(0, 20))}
+                maxLength={20}
+                placeholder="Máximo 20 caracteres"
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
@@ -180,7 +177,9 @@ function RoomJoin({ onJoin }: RoomJoinProps) {
                 id="player-name-input"
                 type="text"
                 value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
+                onChange={(e) => setPlayerName(e.target.value.slice(0, 20))}
+                maxLength={20}
+                placeholder="Máximo 20 caracteres"
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />

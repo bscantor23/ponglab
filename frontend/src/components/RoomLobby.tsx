@@ -64,7 +64,6 @@ function RoomLobby({
   const handleStartGame = () => {
     if (selectedPlayers.length === 2 && isHost && !isStartingGame) {
       setIsStartingGame(true);
-      console.log("Starting game...");
       onStartGame(selectedPlayers);
 
       // Reset starting state after 3 seconds (in case no response)
