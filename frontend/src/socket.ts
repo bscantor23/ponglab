@@ -1,5 +1,11 @@
 import io, { Socket } from "socket.io-client";
 
+interface StoredRoomInfo {
+  roomName: string;
+  password: string;
+  playerName: string;
+}
+
 const DOMAIN = import.meta.env.VITE_DOMAIN;
 
 const SERVERS = [
@@ -13,10 +19,7 @@ let reconnectAttempts = 0;
 const maxReconnectAttempts = 10;
 const reconnectDelay = 2000; // 2 seconds
 
-// Track socket by player name to avoid conflicts
 let currentPlayerName: string | null = null;
-
-// Player-specific socket management to prevent conflicts
 const playerSockets = new Map<string, Socket>();
 
 // Get socket for specific player name
@@ -39,13 +42,6 @@ const removePlayerSocket = (playerName: string) => {
     currentSocket = null;
   }
 };
-
-// Store current room information for automatic rejoin
-interface StoredRoomInfo {
-  roomName: string;
-  password: string;
-  playerName: string;
-}
 
 // Get stored room info from localStorage
 const getStoredRoomInfo = (): StoredRoomInfo | null => {
